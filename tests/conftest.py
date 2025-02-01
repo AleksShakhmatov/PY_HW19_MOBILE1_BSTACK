@@ -36,8 +36,8 @@ def attach_bstack_video(session_id):
 @pytest.fixture(autouse=True)
 def mobile_management():
     options = UiAutomator2Options().load_capabilities({
-        'platformVersion': '12.0',
-        'deviceName': 'Samsung Galaxy S22 Ultra',
+        'platformVersion': '13.0',
+        'deviceName': 'Samsung Galaxy S23',
         'app': 'bs://sample.app',
         'bstack:options': {
             'projectName': 'First Python project',
