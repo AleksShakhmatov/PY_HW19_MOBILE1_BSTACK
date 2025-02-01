@@ -2,53 +2,79 @@ import allure
 import pytest
 import allure_commons
 from appium.options.android import UiAutomator2Options
+from dotenv import load_dotenv
 from selene import browser, support
 import os
-from dotenv import load_dotenv
 from appium import webdriver
-from utils import attach
 
 
-@pytest.fixture(scope='session', autouse=True)
+@pytest.fixture(autouse=True)
 def load_env():
     load_dotenv()
 
 
-@pytest.fixture(scope='function', autouse=True)
+def attach_bstack_video(session_id):
+    import requests
+    bstack_session = requests.get(
+        f'https://api.browserstack.com/app-automate/sessions/{session_id}.json',
+        auth=(os.getenv('LOGIN'), os.getenv('KEY')),
+    ).json()
+    print(bstack_session)
+    video_url = bstack_session['automation_session']['video_url']
+
+    allure.attach(
+        '<html><body>'
+        '<video width="100%" height="100%" controls autoplay>'
+        f'<source src="{video_url}" type="video/mp4">'
+        '</video>'
+        '</body></html>',
+        name='video recording',
+        attachment_type=allure.attachment_type.HTML,
+    )
+
+
+@pytest.fixture(autouse=True)
 def mobile_management():
-    login = os.getenv('USER_NAME')
-    access_key = os.getenv('ACCESS_KEY')
     options = UiAutomator2Options().load_capabilities({
-        'platformVersion': '9.0',
-        'deviceName': 'Google Pixel 3',
-
-        'app': os.getenv('APP_URL'),
-
+        'platformVersion': '10.0',
+        'deviceName': 'Google Pixel 4',
+        'app': 'bs://sample.app',
         'bstack:options': {
             'projectName': 'First Python project',
             'buildName': 'browserstack-build-1',
             'sessionName': 'BStack first_test',
-
-            'userName': login,
-            'accessKey': access_key
+            'userName': os.getenv('LOGIN'),
+            'accessKey': os.getenv('KEY'),
         }
     })
 
-    with allure.step('Init app session'):
-        browser.config.driver = webdriver.Remote('http://hub.browserstack.com/wd/hub', options=options)
+    browser.config.driver = webdriver.Remote(
+        'http://hub.browserstack.com/wd/hub',
+        options=options
+    )
 
     browser.config.timeout = float(os.getenv('timeout', '10.0'))
 
-    browser.config._wait_decorator = support._logging.wait_with(context=allure_commons._allure.StepContext)
+    browser.config._wait_decorator = support._logging.wait_with(
+        context=allure_commons._allure.StepContext
+    )
 
     yield
 
-    attach.add_bstack_screenshot(browser)
-    attach.add_bstack_xml_dump(browser)
+    allure.attach(
+        browser.driver.get_screenshot_as_png(),
+        name='screenshot',
+        attachment_type=allure.attachment_type.PNG,
+    )
+
+    allure.attach(
+        browser.driver.page_source,
+        name='screen xml dump',
+        attachment_type=allure.attachment_type.XML,
+    )
 
     session_id = browser.driver.session_id
 
-    with allure.step('Tear down app session'):
-        browser.quit()
+    browser.quit()
 
-    attach.add_bstack_video(session_id)
+    attach_bstack_video(session_id)
